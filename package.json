@@ -1,0 +1,24 @@
+{
+  "name": "voltcore-core-api",
+  "version": "0.1.0",
+  "description": "VOLTCORE core-api — Cloudflare Worker BFF, mesh HMAC control plane, attested autonomous heal",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "esbuild src/index.ts --bundle --platform=node --target=es2020 --outfile=dist/index.js",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "openai": "^4.51.0",
+    "@supabase/supabase-js": "^2.45.0",
+    "hono": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0",
+    "wrangler": "^3.26.0",
+    "esbuild": "^0.19.0"
+  }
+}
