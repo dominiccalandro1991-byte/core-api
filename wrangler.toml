@@ -3,10 +3,16 @@ main = "src/index.js"
 compatibility_date = "2026-09-01"
 workers_dev = true
 
-# Set in Cloudflare dashboard (wrangler secret put). Never commit values.
+# wrangler secret put — never commit values
 # SUPABASE_URL
 # SUPABASE_SERVICE_ROLE_KEY
 # OPENROUTER_API_KEY
+# OPENROUTER_PRIMARY_MODEL
+# OPENROUTER_SECONDARY_MODEL
+# XAI_API_KEY
 # MESH_HMAC
 # GITHUB_TOKEN
-# AUTONOMOUS_TRUNK   # "1" to commit attested patches to main
+# AUTONOMOUS_TRUNK
+# MONDAY_SIGNING_SECRET
+# APP_URL
+# APP_NAME

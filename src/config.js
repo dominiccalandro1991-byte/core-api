@@ -16,6 +16,7 @@ export const FLEET = {
   "voltcore-command-center": { repo: "voltcore-org/voltcore-command-center", paths: ["app.js", "index.html", "styles.css"] },
   "trueturn": { repo: "dominiccalandro1991-byte/TrueTurn", paths: ["src/", "public/"] },
   "grok-orchestration-engine": { repo: "voltcore-org/voltcore-command-center", paths: ["app.js"] },
+  monday: { repo: "voltcore-org/voltcore-command-center", paths: ["src/"] },
 };
 
 export const FORBID = /(\.env($|\.)|secrets?\/|credentials|id_rsa|ghp_|service_role|wrangler\.toml)/i;
