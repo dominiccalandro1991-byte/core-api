@@ -58,24 +58,7 @@ export const LATTICE = {
 export const DEPRECATED = new Set(["asml-nexus", "VOLTCORE-IdeaForge"]);
 
 /** Construction targets emit health.diagnostic until verified live. */
-export const INCOMPLETE = {
-  causalrail: {
-    missing_dependencies: [],
-    required_build_specs: [
-      "package.json with type:module",
-      "voltcore/heartbeat.mjs POSTing source=causalrail",
-      "in-app 60s timer (server + client) — not GHA minute cron",
-    ],
-  },
-  "paleochron-arrowforge": {
-    missing_dependencies: [],
-    required_build_specs: [
-      "seed lithic/PWA source on main",
-      "voltcore/heartbeat.mjs POSTing source=paleochron-arrowforge",
-      "in-app 60s timer — not GHA minute cron",
-    ],
-  },
-};
+export const INCOMPLETE = {};
 
 export const LANE_CEILING = Object.keys(LATTICE).length;
 
