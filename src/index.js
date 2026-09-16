@@ -2,9 +2,10 @@
  * VOLTCORE core-api — Cloudflare Worker BFF + Dual-Rail mesh.
  * Secrets: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, OPENROUTER_API_KEY, XAI_API_KEY,
  * MESH_HMAC, GITHUB_TOKEN, AUTONOMOUS_TRUNK, MONDAY_SIGNING_SECRET, APP_URL, APP_NAME,
- * OPENROUTER_PRIMARY_MODEL, OPENROUTER_SECONDARY_MODEL.
+ * OPENROUTER_PRIMARY_MODEL, OPENROUTER_SECONDARY_MODEL, TENANT_ID.
  */
-import { CORS, FLEET } from "./config.js";
+import { CORS, FLEET, LANE_CEILING, LATTICE } from "./config.js";
+import { pollFleet } from "./cron.js";
 import { command, ingest, listEvents, remediate, requireMesh } from "./handlers.js";
 import { handleMonday, listTelemetry } from "./monday.js";
 
@@ -19,6 +20,9 @@ export default {
           service: "voltcore-core-api",
           time: new Date().toISOString(),
           fleet: Object.keys(FLEET),
+          lattice: Object.keys(LATTICE),
+          lanes: LANE_CEILING,
+          cron: true,
           mesh: Boolean(env.MESH_HMAC),
           trunk: env.AUTONOMOUS_TRUNK === "1",
           neural: Boolean(env.XAI_API_KEY),
@@ -36,6 +40,9 @@ export default {
         return json({
           status: "ok",
           fleet: Object.keys(FLEET),
+          lattice: Object.keys(LATTICE),
+          lanes: LANE_CEILING,
+          cron: true,
           mesh: Boolean(env.MESH_HMAC),
           trunk: env.AUTONOMOUS_TRUNK === "1",
           neural: Boolean(env.XAI_API_KEY),
@@ -57,6 +64,9 @@ export default {
       const status = err.status || 500;
       return json({ error: err.code || "error", detail: err.message || String(err) }, status);
     }
+  },
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(pollFleet(env));
   },
 };
 
