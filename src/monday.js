@@ -10,6 +10,7 @@ function sbHeaders(env) {
 
 async function insert(env, table, row) {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) return row;
+  if (table === "events" && !row.tenant_id) row.tenant_id = env.TENANT_ID || "voltcore";
   const res = await fetch(env.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/" + table, {
     method: "POST",
     headers: { ...sbHeaders(env), Prefer: "return=representation" },

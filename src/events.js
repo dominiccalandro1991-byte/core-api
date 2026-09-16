@@ -34,7 +34,9 @@ export async function ingest(env, request) {
   const event_type = String(body.type || body.event_type || "event").slice(0, 120);
   const severity = String(body.severity || "info").slice(0, 32).toLowerCase();
   if (!source) fail(400, "source_required", "source required");
+  const tenant_id = String(body.tenant_id || env.TENANT_ID || "voltcore").slice(0, 64);
   const row = {
+    tenant_id,
     source: source.slice(0, 80),
     event_type,
     severity,
