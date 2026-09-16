@@ -20,3 +20,7 @@ crons = ["* * * * *"]
 # APP_URL
 # APP_NAME
 # TENANT_ID
+
+[vars]
+# Public Supabase project URL (not the service role). Restored after org-stub overwrite.
+SUPABASE_URL = "https://tobjvhrfjmyzgidrccrz.supabase.co"
