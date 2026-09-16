@@ -28,13 +28,34 @@ export async function listEvents(env, url) {
   return { status: "ok", events, fetched_at: new Date().toISOString() };
 }
 
+let cachedTenantId = null;
+
+async function resolveTenantId(env, body) {
+  if (body && body.tenant_id) return String(body.tenant_id);
+  if (env.TENANT_ID) return String(env.TENANT_ID);
+  if (cachedTenantId) return cachedTenantId;
+  const headers = await sbHeaders(env);
+  const res = await fetch(
+    env.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/events?select=tenant_id&limit=1",
+    { headers },
+  );
+  if (res.ok) {
+    const rows = await res.json();
+    if (rows[0] && rows[0].tenant_id) {
+      cachedTenantId = rows[0].tenant_id;
+      return cachedTenantId;
+    }
+  }
+  return crypto.randomUUID();
+}
+
 export async function ingest(env, request) {
   const body = await request.json().catch(() => ({}));
   const source = String(body.source || "").trim();
   const event_type = String(body.type || body.event_type || "event").slice(0, 120);
   const severity = String(body.severity || "info").slice(0, 32).toLowerCase();
   if (!source) fail(400, "source_required", "source required");
-  const tenant_id = String(body.tenant_id || env.TENANT_ID || "voltcore").slice(0, 64);
+  const tenant_id = await resolveTenantId(env, body);
   const row = {
     tenant_id,
     source: source.slice(0, 80),
