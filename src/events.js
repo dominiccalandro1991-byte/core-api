@@ -103,18 +103,32 @@ export async function ingestEvent(env, body) {
   return { status: "accepted", event: Array.isArray(inserted) ? inserted[0] : inserted };
 }
 
-/** One PostgREST POST for the whole set. Lane count does not add round-trips. */
+/** One PostgREST POST for the valid rows. Lane count does not add round-trips. Invalid rows are reported, not retried. */
 export async function ingestMany(env, bodies) {
   const list = Array.isArray(bodies) ? bodies : [];
   const hinted = list.find((body) => body && body.tenant_id);
   const tenant_id = await resolveTenantId(env, hinted || {});
   const rows = [];
+  const errors = [];
   for (const body of list) {
     const source = String((body && body.source) || "").trim();
-    if (!source || DEPRECATED.has(source)) continue;
-    rows.push(eventRow(tenant_id, body));
+    if (!source) {
+      errors.push({ source: "", detail: "source required" });
+      continue;
+    }
+    if (DEPRECATED.has(source)) {
+      errors.push({ source, detail: "lane permanently purged" });
+      continue;
+    }
+    try {
+      rows.push(eventRow(tenant_id, body));
+    } catch (err) {
+      errors.push({ source, detail: String(err.message || err) });
+    }
   }
-  if (!rows.length) return { status: "accepted", count: 0, tenant_id };
+  if (!rows.length) {
+    return { status: errors.length ? "partial" : "accepted", count: 0, errors, tenant_id };
+  }
   const headers = { ...(await sbHeaders(env)), Prefer: "return=minimal" };
   const res = await fetch(env.SUPABASE_URL.replace(/\/$/, "") + "/rest/v1/events", {
     method: "POST",
@@ -122,7 +136,12 @@ export async function ingestMany(env, bodies) {
     body: JSON.stringify(rows),
   });
   if (!res.ok) fail(502, "events_write_failed", await res.text());
-  return { status: "accepted", count: rows.length, tenant_id };
+  return {
+    status: errors.length ? "partial" : "accepted",
+    count: rows.length,
+    ...(errors.length ? { errors } : {}),
+    tenant_id,
+  };
 }
 
 export async function ingest(env, request) {
