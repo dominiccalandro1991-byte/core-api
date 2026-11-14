@@ -1,4 +1,4 @@
-import { FLEET, FORBID, HEAL_CAP, HEAL_WINDOW_MS, healLog } from "./config.js";
+import { DEPRECATED, FLEET, FORBID, HEAL_CAP, HEAL_WINDOW_MS, healLog } from "./config.js";
 
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -36,9 +36,17 @@ export async function listEvents(env, url) {
 
 let cachedTenantId = null;
 
+/**
+ * Public ingest must resolve a real UUID tenant.
+ * Order: body.tenant_id, Worker TENANT_ID, last persisted events.tenant_id.
+ * Never mint a random tenant.
+ */
 export async function resolveTenantId(env, body) {
   const hinted = body && body.tenant_id;
-  if (isUuid(hinted)) return String(hinted);
+  if (hinted != null && hinted !== "") {
+    if (!isUuid(hinted)) fail(400, "tenant_id_invalid", "tenant_id must be a UUID");
+    return String(hinted);
+  }
   if (isUuid(env.TENANT_ID)) return String(env.TENANT_ID);
   if (isUuid(cachedTenantId)) return cachedTenantId;
   const headers = await sbHeaders(env);
@@ -53,8 +61,7 @@ export async function resolveTenantId(env, body) {
       return cachedTenantId;
     }
   }
-  cachedTenantId = crypto.randomUUID();
-  return cachedTenantId;
+  fail(422, "tenant_unresolved", "tenant_id UUID required");
 }
 
 function normalizeSeverity(value) {
@@ -71,6 +78,7 @@ function eventRow(tenant_id, body) {
   const event_type = String(body.type || body.event_type || "event").slice(0, 120);
   const severity = normalizeSeverity(body.severity);
   if (!source) fail(400, "source_required", "source required");
+  if (DEPRECATED.has(source)) fail(410, "lane_purged", "lane permanently purged");
   if (!isUuid(tenant_id)) fail(500, "tenant_id_invalid", "tenant_id must be a UUID");
   return {
     tenant_id,
@@ -95,12 +103,15 @@ export async function ingestEvent(env, body) {
   return { status: "accepted", event: Array.isArray(inserted) ? inserted[0] : inserted };
 }
 
+/** One PostgREST POST for the whole set. Lane count does not add round-trips. */
 export async function ingestMany(env, bodies) {
-  const tenant_id = await resolveTenantId(env, {});
+  const list = Array.isArray(bodies) ? bodies : [];
+  const hinted = list.find((body) => body && body.tenant_id);
+  const tenant_id = await resolveTenantId(env, hinted || {});
   const rows = [];
-  for (const body of bodies || []) {
-    const source = String(body.source || "").trim();
-    if (!source) continue;
+  for (const body of list) {
+    const source = String((body && body.source) || "").trim();
+    if (!source || DEPRECATED.has(source)) continue;
     rows.push(eventRow(tenant_id, body));
   }
   if (!rows.length) return { status: "accepted", count: 0, tenant_id };
@@ -110,24 +121,20 @@ export async function ingestMany(env, bodies) {
     headers,
     body: JSON.stringify(rows),
   });
-  if (!res.ok) {
-    const errors = [];
-    let accepted = 0;
-    for (const body of bodies) {
-      try {
-        await ingestEvent(env, body);
-        accepted += 1;
-      } catch (err) {
-        errors.push({ source: body.source, detail: String(err.message || err) });
-      }
-    }
-    return { status: errors.length ? "partial" : "accepted", count: accepted, errors, tenant_id };
-  }
+  if (!res.ok) fail(502, "events_write_failed", await res.text());
   return { status: "accepted", count: rows.length, tenant_id };
 }
 
 export async function ingest(env, request) {
   const body = await request.json().catch(() => ({}));
+  if (Array.isArray(body)) return ingestMany(env, body);
+  if (body && Array.isArray(body.events)) {
+    const wrapped = body.events.map((ev) => ({
+      ...(ev && typeof ev === "object" ? ev : {}),
+      tenant_id: ev && ev.tenant_id ? ev.tenant_id : body.tenant_id,
+    }));
+    return ingestMany(env, wrapped);
+  }
   return ingestEvent(env, body);
 }
 
@@ -147,7 +154,10 @@ export async function requireMesh(env, request) {
   if (!Number.isFinite(t) || Math.abs(Date.now() - t) > 120000) fail(401, "mesh_clock", "Timestamp outside 120s");
   if (!nonce || nonce.length < 8) fail(401, "mesh_nonce", "Nonce required");
   const expect = await hmacHex(env.MESH_HMAC, ts + "." + nonce);
-  if (expect !== sig) fail(401, "mesh_sig", "Bad mesh signature");
+  if (expect.length !== sig.length) fail(401, "mesh_sig", "Bad mesh signature");
+  let diff = 0;
+  for (let i = 0; i < expect.length; i++) diff |= expect.charCodeAt(i) ^ sig.charCodeAt(i);
+  if (diff !== 0) fail(401, "mesh_sig", "Bad mesh signature");
 }
 
 export function boundPath(source, filePath) {
